@@ -31,6 +31,53 @@ jobs:
           test -n "$ANDROID_HOME"
           test -d "$ANDROID_HOME"
 
+      - name: Disable optional versions plugin
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("build.gradle")
+          source = path.read_text(encoding="utf-8")
+
+          plugin = "com.github.ben-manes.versions"
+          dependency = (
+              "com.github.ben-manes:"
+              "gradle-versions-plugin:0.36.0"
+          )
+
+          if source.count(plugin) != 1:
+              raise RuntimeError(
+                  "Unexpected plugin declaration"
+              )
+
+          if source.count(dependency) != 1:
+              raise RuntimeError(
+                  "Unexpected plugin dependency"
+              )
+
+          lines = source.splitlines(keepends=True)
+          lines = [
+              line for line in lines
+              if plugin not in line
+              and dependency not in line
+          ]
+          source = "".join(lines)
+
+          start = source.index(
+              "configurations {\n"
+              "    dependencyUpdates.resolutionStrategy"
+          )
+          end = source.index(
+              "\nallprojects {", start
+          )
+
+          source = source[:start] + source[end + 1:]
+
+          path.write_text(source, encoding="utf-8")
+          print("Optional versions plugin disabled.")
+          PY
+
       - name: Prepare Gradle Wrapper
         shell: bash
         run: |
