@@ -31,6 +31,73 @@ jobs:
           test -n "$ANDROID_HOME"
           test -d "$ANDROID_HOME"
 
+      - name: Check KVS Schema availability
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request
+          import urllib.error
+
+          repositories = {
+              "Maven Central":
+                  "https://repo.maven.apache.org/maven2",
+              "JCenter":
+                  "https://jcenter.bintray.com",
+              "Spring Milestone":
+                  "https://repo.spring.io/milestone",
+              "Spring Release":
+                  "https://repo.spring.io/release",
+          }
+
+          artifacts = {
+              "kvs-schema": "aar",
+              "kvs-schema-compiler": "jar",
+          }
+
+          group_path = "com/rejasupotaro"
+          version = "5.1.0"
+
+          for repo_name, base_url in repositories.items():
+              print(f"\nRepository: {repo_name}", flush=True)
+
+              for artifact, extension in artifacts.items():
+                  path = (
+                      f"{group_path}/{artifact}/{version}/"
+                      f"{artifact}-{version}.{extension}"
+                  )
+                  url = f"{base_url}/{path}"
+
+                  request = urllib.request.Request(
+                      url,
+                      method="GET",
+                      headers={
+                          "User-Agent": "YuzuBrowser-Build-Diagnostic",
+                          "Range": "bytes=0-0",
+                      },
+                  )
+
+                  try:
+                      with urllib.request.urlopen(
+                          request, timeout=20
+                      ) as response:
+                          status = response.status
+                          print(
+                              f"{artifact}: HTTP {status}",
+                              flush=True,
+                          )
+                  except urllib.error.HTTPError as error:
+                      print(
+                          f"{artifact}: HTTP {error.code}",
+                          flush=True,
+                      )
+                  except Exception as error:
+                      print(
+                          f"{artifact}: {type(error).__name__}: "
+                          f"{error}",
+                          flush=True,
+                      )
+          PY
+
       - name: Disable optional versions plugin
         shell: bash
         run: |
