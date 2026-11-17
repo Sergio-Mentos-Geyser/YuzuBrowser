@@ -11,7 +11,7 @@ jobs:
   build-kvs-schema:
     name: Build KVS Schema 5.1.0
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Check out YuzuBrowser
@@ -40,10 +40,10 @@ jobs:
 
           cd kvs-schema-source
 
-          git checkout \
-            da82f8d6c94c41057101921d222050378ad7190e
-
           EXPECTED="da82f8d6c94c41057101921d222050378ad7190e"
+
+          git checkout "$EXPECTED"
+
           ACTUAL="$(git rev-parse HEAD)"
 
           echo "Expected commit: $EXPECTED"
@@ -87,6 +87,134 @@ jobs:
 
           "$JAVA8/bin/java" -version
 
+      - name: Disable obsolete Bintray publishing plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path("kvs-schema-source")
+
+          root_file = root / "build.gradle"
+          library_file = root / "library/build.gradle"
+          compiler_file = root / "compiler/build.gradle"
+
+          def remove_exact_line(path, target):
+              source = path.read_text(encoding="utf-8")
+              lines = source.splitlines(keepends=True)
+
+              matches = [
+                  line for line in lines
+                  if line.strip() == target
+              ]
+
+              if len(matches) != 1:
+                  raise RuntimeError(
+                      f"Expected one occurrence of {target} "
+                      f"in {path}, found {len(matches)}"
+                  )
+
+              result = "".join(
+                  line for line in lines
+                  if line.strip() != target
+              )
+
+              path.write_text(result, encoding="utf-8")
+
+          def remove_publish_block(path):
+              source = path.read_text(encoding="utf-8")
+
+              pattern = (
+                  r"(?m)^publish\s*\{"
+                  r"[^{}]*"
+                  r"^\}\s*\n?"
+              )
+
+              result, count = re.subn(
+                  pattern,
+                  "",
+                  source
+              )
+
+              if count != 1:
+                  raise RuntimeError(
+                      f"Expected one publish block in "
+                      f"{path}, found {count}"
+                  )
+
+              path.write_text(result, encoding="utf-8")
+
+          remove_exact_line(
+              root_file,
+              "classpath 'com.novoda:bintray-release:0.9'"
+          )
+
+          for path in [library_file, compiler_file]:
+              remove_exact_line(
+                  path,
+                  "apply plugin: 'com.novoda.bintray-release'"
+              )
+              remove_publish_block(path)
+
+          print("Obsolete Bintray plugin disabled.")
+          print("Original GitHub repositories unchanged.")
+          PY
+
+      - name: Add Maven Central to KVS Schema
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("kvs-schema-source/build.gradle")
+          source = path.read_text(encoding="utf-8")
+
+          old = (
+              "repositories {\n"
+              "        google()\n"
+              "        jcenter()\n"
+              "    }"
+          )
+
+          new = (
+              "repositories {\n"
+              "        google()\n"
+              "        mavenCentral()\n"
+              "        jcenter()\n"
+              "    }"
+          )
+
+          count = source.count(old)
+
+          if count != 2:
+              raise RuntimeError(
+                  f"Expected 2 repository blocks, found {count}"
+              )
+
+          source = source.replace(old, new)
+
+          path.write_text(source, encoding="utf-8")
+
+          print("Maven Central added.")
+          PY
+
+      - name: Show temporary changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git -C kvs-schema-source diff --check
+
+          git -C kvs-schema-source diff -- \
+            build.gradle \
+            library/build.gradle \
+            compiler/build.gradle
+
       - name: Check Gradle environment
         shell: bash
         working-directory: kvs-schema-source
@@ -119,10 +247,12 @@ jobs:
           set -euo pipefail
 
           echo "Library outputs:"
+
           find kvs-schema-source/library/build/outputs \
             -type f -print
 
           echo "Compiler outputs:"
+
           find kvs-schema-source/compiler/build/libs \
             -type f -print
 
