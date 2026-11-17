@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build:
@@ -26,81 +27,231 @@ jobs:
       - name: Check environment
         shell: bash
         run: |
+          set -euo pipefail
           java -version
           echo "ANDROID_HOME=$ANDROID_HOME"
           test -n "$ANDROID_HOME"
           test -d "$ANDROID_HOME"
 
-      - name: Check KVS Schema availability
+      - name: Download KVS Schema artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kvs-schema-build-results
+          run-id: 44117506520
+          repository: Sergio-Mentos-Geyser/YuzuBrowser
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: kvs-schema-artifacts
+
+      - name: Inspect downloaded artifacts
         shell: bash
         run: |
+          set -euo pipefail
+
+          echo "Downloaded files:"
+          find kvs-schema-artifacts \
+            -type f -print
+
+          test -d kvs-schema-artifacts
+
+      - name: Create local Maven repository
+        shell: bash
+        run: |
+          set -euo pipefail
+
           python3 - <<'PY'
-          import urllib.request
-          import urllib.error
+          from pathlib import Path
+          import shutil
+          import xml.etree.ElementTree as ET
 
-          repositories = {
-              "Maven Central":
-                  "https://repo.maven.apache.org/maven2",
-              "JCenter":
-                  "https://jcenter.bintray.com",
-              "Spring Milestone":
-                  "https://repo.spring.io/milestone",
-              "Spring Release":
-                  "https://repo.spring.io/release",
-          }
-
-          artifacts = {
-              "kvs-schema": "aar",
-              "kvs-schema-compiler": "jar",
-          }
-
-          group_path = "com/rejasupotaro"
+          artifact_root = Path("kvs-schema-artifacts")
+          maven_root = Path("local-maven")
+          group_path = Path("com/rejasupotaro")
           version = "5.1.0"
 
-          for repo_name, base_url in repositories.items():
-              print(f"\nRepository: {repo_name}", flush=True)
-
-              for artifact, extension in artifacts.items():
-                  path = (
-                      f"{group_path}/{artifact}/{version}/"
-                      f"{artifact}-{version}.{extension}"
+          def find_one(filename):
+              matches = list(
+                  artifact_root.rglob(filename)
+              )
+              if len(matches) != 1:
+                  raise RuntimeError(
+                      f"Expected exactly one {filename}, "
+                      f"found {len(matches)}"
                   )
-                  url = f"{base_url}/{path}"
+              return matches[0]
 
-                  request = urllib.request.Request(
-                      url,
-                      method="GET",
-                      headers={
-                          "User-Agent": "YuzuBrowser-Build-Diagnostic",
-                          "Range": "bytes=0-0",
-                      },
+          library_source = find_one(
+              "library-release.aar"
+          )
+          compiler_source = find_one(
+              "compiler.jar"
+          )
+
+          def write_pom(
+              destination,
+              artifact_id,
+              dependencies
+          ):
+              project = ET.Element("project", {
+                  "xmlns":
+                  "http://maven.apache.org/POM/4.0.0"
+              })
+
+              def add(parent, name, value):
+                  element = ET.SubElement(
+                      parent, name
+                  )
+                  element.text = value
+                  return element
+
+              add(project, "modelVersion", "4.0.0")
+              add(project, "groupId", "com.rejasupotaro")
+              add(project, "artifactId", artifact_id)
+              add(project, "version", version)
+
+              packaging = (
+                  "aar"
+                  if artifact_id == "kvs-schema"
+                  else "jar"
+              )
+              add(project, "packaging", packaging)
+
+              if dependencies:
+                  dependencies_node = ET.SubElement(
+                      project, "dependencies"
                   )
 
-                  try:
-                      with urllib.request.urlopen(
-                          request, timeout=20
-                      ) as response:
-                          status = response.status
-                          print(
-                              f"{artifact}: HTTP {status}",
-                              flush=True,
-                          )
-                  except urllib.error.HTTPError as error:
-                      print(
-                          f"{artifact}: HTTP {error.code}",
-                          flush=True,
+                  for group, name, dep_version in dependencies:
+                      dependency = ET.SubElement(
+                          dependencies_node,
+                          "dependency"
                       )
-                  except Exception as error:
-                      print(
-                          f"{artifact}: {type(error).__name__}: "
-                          f"{error}",
-                          flush=True,
-                      )
+                      add(dependency, "groupId", group)
+                      add(dependency, "artifactId", name)
+                      add(dependency, "version", dep_version)
+                      add(dependency, "scope", "compile")
+
+              tree = ET.ElementTree(project)
+              ET.indent(tree, space="  ")
+
+              tree.write(
+                  destination,
+                  encoding="utf-8",
+                  xml_declaration=True
+              )
+
+          def install(
+              artifact_id,
+              source_file,
+              extension,
+              dependencies
+          ):
+              directory = (
+                  maven_root
+                  / group_path
+                  / artifact_id
+                  / version
+              )
+              directory.mkdir(
+                  parents=True,
+                  exist_ok=True
+              )
+
+              filename = (
+                  f"{artifact_id}-{version}.{extension}"
+              )
+
+              shutil.copy2(
+                  source_file,
+                  directory / filename
+              )
+
+              write_pom(
+                  directory
+                  / f"{artifact_id}-{version}.pom",
+                  artifact_id,
+                  dependencies
+              )
+
+              print(
+                  f"Installed: {directory / filename}"
+              )
+
+          install(
+              "kvs-schema",
+              library_source,
+              "aar",
+              []
+          )
+
+          install(
+              "kvs-schema-compiler",
+              compiler_source,
+              "jar",
+              [
+                  (
+                      "com.rejasupotaro",
+                      "kvs-schema",
+                      version
+                  ),
+                  (
+                      "com.squareup",
+                      "javapoet",
+                      "1.2.0"
+                  )
+              ]
+          )
+
+          print("Local Maven repository created.")
+          PY
+
+      - name: Add local Maven repository to Gradle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("build.gradle")
+          source = path.read_text(encoding="utf-8")
+
+          marker = (
+              "allprojects {\n"
+              "    repositories {\n"
+          )
+
+          if source.count(marker) != 1:
+              raise RuntimeError(
+                  "Unexpected allprojects repositories"
+              )
+
+          local_repository = (
+              "allprojects {\n"
+              "    repositories {\n"
+              "        maven {\n"
+              "            url uri(rootProject.file('local-maven'))\n"
+              "        }\n"
+          )
+
+          source = source.replace(
+              marker,
+              local_repository,
+              1
+          )
+
+          path.write_text(
+              source,
+              encoding="utf-8"
+          )
+
+          print("Local Maven repository added.")
           PY
 
       - name: Disable optional versions plugin
         shell: bash
         run: |
+          set -euo pipefail
+
           python3 - <<'PY'
           from pathlib import Path
 
@@ -123,31 +274,48 @@ jobs:
                   "Unexpected plugin dependency"
               )
 
-          lines = source.splitlines(keepends=True)
+          lines = source.splitlines(
+              keepends=True
+          )
+
           lines = [
               line for line in lines
               if plugin not in line
               and dependency not in line
           ]
+
           source = "".join(lines)
 
           start = source.index(
               "configurations {\n"
               "    dependencyUpdates.resolutionStrategy"
           )
+
           end = source.index(
-              "\nallprojects {", start
+              "\nallprojects {",
+              start
           )
 
-          source = source[:start] + source[end + 1:]
+          source = (
+              source[:start]
+              + source[end + 1:]
+          )
 
-          path.write_text(source, encoding="utf-8")
-          print("Optional versions plugin disabled.")
+          path.write_text(
+              source,
+              encoding="utf-8"
+          )
+
+          print(
+              "Optional versions plugin disabled."
+          )
           PY
 
       - name: Disable obsolete Fabric Gradle plugin
         shell: bash
         run: |
+          set -euo pipefail
+
           python3 - <<'PY'
           from pathlib import Path
 
@@ -164,7 +332,10 @@ jobs:
                   "Unexpected Fabric dependency"
               )
 
-          lines = source.splitlines(keepends=True)
+          lines = source.splitlines(
+              keepends=True
+          )
+
           lines = [
               line for line in lines
               if target not in line
@@ -184,18 +355,27 @@ jobs:
       - name: Show temporary changes
         shell: bash
         run: |
+          set -euo pipefail
+
           git diff --check
           git diff -- build.gradle app/build.gradle
+
+          echo "Local Maven files:"
+          find local-maven -type f -print
 
       - name: Prepare Gradle Wrapper
         shell: bash
         run: |
+          set -euo pipefail
+
           chmod +x ./gradlew
           ./gradlew --version
 
       - name: Build Debug APK
         shell: bash
         run: |
+          set -euo pipefail
+
           ./gradlew :app:assembleDebug \
             --no-daemon \
             --stacktrace \
