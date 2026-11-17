@@ -23,72 +23,69 @@ jobs:
           distribution: temurin
           java-version: '8'
 
-      - name: Find KVS Schema version
-        shell: bash
-        run: |
-          set -euo pipefail
+      - name: Set up Java 17 for Android SDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-          REPO="https://github.com/rejasupotaro/kvs-schema.git"
-
-          echo "Checking available tags..."
-
-          git ls-remote --tags --refs "$REPO" \
-            | tee kvs-tags.txt
-
-          if grep -q $'refs/tags/5.1.0$' kvs-tags.txt; then
-            TAG="5.1.0"
-          elif grep -q $'refs/tags/v5.1.0$' kvs-tags.txt; then
-            TAG="v5.1.0"
-          else
-            echo "::error::Version 5.1.0 tag not found."
-            echo "A matching source revision must be identified."
-            exit 1
-          fi
-
-          echo "Found tag: $TAG"
-          echo "KVS_TAG=$TAG" >> "$GITHUB_ENV"
-
-      - name: Clone KVS Schema
+      - name: Clone KVS Schema at fixed commit
         shell: bash
         run: |
           set -euo pipefail
 
           git clone \
-            --depth 1 \
-            --branch "$KVS_TAG" \
             https://github.com/rejasupotaro/kvs-schema.git \
             kvs-schema-source
 
           cd kvs-schema-source
 
-          echo "Selected revision:"
-          git rev-parse HEAD
+          git checkout \
+            da82f8d6c94c41057101921d222050378ad7190e
+
+          EXPECTED="da82f8d6c94c41057101921d222050378ad7190e"
+          ACTUAL="$(git rev-parse HEAD)"
+
+          echo "Expected commit: $EXPECTED"
+          echo "Actual commit:   $ACTUAL"
+
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Unexpected source revision."
+            exit 1
+          fi
+
+          echo "Version information:"
+          cat gradle/version/version.properties
 
           echo "Gradle Wrapper:"
           cat gradle/wrapper/gradle-wrapper.properties
 
-      - name: Check Android SDK
+      - name: Install Android SDK 28
         shell: bash
         run: |
           set -euo pipefail
 
-          java -version
-
-          echo "ANDROID_HOME=$ANDROID_HOME"
-
-          test -n "$ANDROID_HOME"
-          test -d "$ANDROID_HOME"
-
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
-          if [ ! -x "$SDKMANAGER" ]; then
-            echo "::error::Android SDK manager not found."
-            exit 1
-          fi
+          test -x "$SDKMANAGER"
 
           "$SDKMANAGER" \
             "platforms;android-28" \
             "build-tools;28.0.3"
+
+      - name: Switch to Java 8
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          JAVA8="$JAVA_HOME_8_X64"
+
+          test -d "$JAVA8"
+
+          echo "JAVA_HOME=$JAVA8" >> "$GITHUB_ENV"
+          echo "$JAVA8/bin" >> "$GITHUB_PATH"
+
+          "$JAVA8/bin/java" -version
 
       - name: Check Gradle environment
         shell: bash
@@ -97,6 +94,8 @@ jobs:
           set -euo pipefail
 
           chmod +x ./gradlew
+
+          java -version
 
           ./gradlew --version
 
