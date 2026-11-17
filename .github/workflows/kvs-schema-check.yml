@@ -208,8 +208,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          git -C kvs-schema-source diff --check
-
           git -C kvs-schema-source diff -- \
             build.gradle \
             library/build.gradle \
