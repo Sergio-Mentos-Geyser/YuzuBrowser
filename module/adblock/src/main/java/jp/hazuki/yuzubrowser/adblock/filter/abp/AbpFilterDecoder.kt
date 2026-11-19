@@ -62,6 +62,7 @@ class AbpFilterDecoder {
         reader.forEachLine { line ->
             if (line.isEmpty()) return@forEachLine
             val trimmedLine = line.trim()
+            if (trimmedLine.isEmptry()) return@forEachLine
             when {
                 trimmedLine[0] == '!' -> trimmedLine.decodeComment(url, info)?.let {
                     throw OnRedirectException(it)
