@@ -23,6 +23,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.ResultReceiver
+import android.util.Log
+import jp.hazuki.yuzubrowser.adblock.BuildConfig
 import androidx.core.app.JobIntentService
 import androidx.core.content.getSystemService
 import dagger.hilt.android.AndroidEntryPoint
@@ -118,6 +120,7 @@ class AbpUpdateService : JobIntentService() {
     }
 
     private suspend fun updateHttp(entity: AbpEntity, forceUpdate: Boolean): Boolean {
+        if (BuildConfig.DEBUG) Log.d("YuzuAbpDecode", "SOURCE_HTTP url=" + entity.url.substringBefore('?').substringBefore('#'))
 
         val request = try {
             Request.Builder()
@@ -141,6 +144,7 @@ class AbpUpdateService : JobIntentService() {
         val call = okHttpClient.newCall(request.build())
         try {
             val response = call.execute()
+            if (BuildConfig.DEBUG) Log.d("YuzuAbpDecode", "HTTP_RESPONSE status=" + response.code + " url=" + entity.url.substringBefore('?').substringBefore('#'))
 
             if (response.code == 304) {
                 entity.lastLocalUpdate = System.currentTimeMillis()
@@ -165,6 +169,7 @@ class AbpUpdateService : JobIntentService() {
     }
 
     private suspend fun updateFile(entity: AbpEntity): Boolean {
+        if (BuildConfig.DEBUG) Log.d("YuzuAbpDecode", "SOURCE_FILE path=" + (Uri.parse(entity.url).lastPathSegment ?: "unknown"))
         val path = Uri.parse(entity.url).path ?: return false
         val file = File(path)
         if (file.lastModified() < entity.lastLocalUpdate) return false
@@ -180,6 +185,7 @@ class AbpUpdateService : JobIntentService() {
     }
 
     private suspend fun updateAssets(entity: AbpEntity): Boolean {
+        if (BuildConfig.DEBUG) Log.d("YuzuAbpDecode", "SOURCE_ASSET path=adblock/yuzu_filter.txt")
         if (entity.version == "2") {
             val dir = getFilterDir()
 
@@ -195,8 +201,12 @@ class AbpUpdateService : JobIntentService() {
 
     private suspend fun decode(reader: BufferedReader, charset: Charset, entity: AbpEntity): Boolean {
         val decoder = AbpFilterDecoder()
-        if (!decoder.checkHeader(reader, charset)) return false
+        if (!decoder.checkHeader(reader, charset)) {
+            if (BuildConfig.DEBUG) Log.w("YuzuAbpDecode", "HEADER_REJECTED source=" + entity.url.substringBefore('?').substringBefore('#'))
+            return false
+        }
 
+        if (BuildConfig.DEBUG) Log.d("YuzuAbpDecode", "DECODE_STARTED source=" + entity.url.substringBefore('?').substringBefore('#'))
         val set = decoder.decode(reader, entity.url)
 
         val info = set.filterInfo
