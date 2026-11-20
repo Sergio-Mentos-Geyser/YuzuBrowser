@@ -16,7 +16,9 @@
 
 package jp.hazuki.yuzubrowser.adblock.filter.abp
 
+import android.util.Log
 import com.google.re2j.Pattern
+import jp.hazuki.yuzubrowser.adblock.BuildConfig
 import jp.hazuki.yuzubrowser.adblock.*
 import jp.hazuki.yuzubrowser.adblock.core.ContentRequest
 import jp.hazuki.yuzubrowser.adblock.filter.unified.*
@@ -59,10 +61,24 @@ class AbpFilterDecoder {
         val white = mutableListOf<UnifiedFilter>()
         val elementDisableFilter = mutableListOf<UnifiedFilter>()
         val elementFilter = mutableListOf<ElementFilter>()
+        var lineNumber = 0
+        var whitespaceLinesSkipped = 0
         reader.forEachLine { line ->
+            lineNumber++
             if (line.isEmpty()) return@forEachLine
             val trimmedLine = line.trim()
-            if (trimmedLine.isEmpty()) return@forEachLine
+            if (trimmedLine.isEmpty()) {
+                whitespaceLinesSkipped++
+                if (BuildConfig.DEBUG) {
+                    // Only whitespace character codes are logged; never log full filter rules.
+                    val characterCodes = line.take(80).map { "U+" + it.toInt().toString(16).toUpperCase(Locale.ENGLISH).padStart(4, '0') }.joinToString(",")
+                    Log.w("YuzuAbpDecode", "WHITESPACE_LINE_SKIPPED source=" + (url?.substringBefore('?')?.substringBefore('#') ?: "unknown") +
+                        " line=" + lineNumber + " originalLength=" + line.length +
+                        " trimmedLength=0 characterCodes=" + characterCodes +
+                        " crashPrevented=true")
+                }
+                return@forEachLine
+            }
             when {
                 trimmedLine[0] == '!' -> trimmedLine.decodeComment(url, info)?.let {
                     throw OnRedirectException(it)
@@ -81,6 +97,10 @@ class AbpFilterDecoder {
                     }
                 }
             }
+        }
+        if (BuildConfig.DEBUG) {
+            Log.d("YuzuAbpDecode", "DECODE_COMPLETED source=" + (url?.substringBefore('?')?.substringBefore('#') ?: "unknown") +
+                " lines=" + lineNumber + " whitespaceLinesSkipped=" + whitespaceLinesSkipped)
         }
         return UnifiedFilterSet(info, black, white, elementDisableFilter, elementFilter)
     }
