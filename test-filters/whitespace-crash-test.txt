@@ -1,0 +1,5 @@
+[Adblock Plus 2.0]
+! YuzuBrowser whitespace crash regression test
+||example.com^
+    
+! End of test
