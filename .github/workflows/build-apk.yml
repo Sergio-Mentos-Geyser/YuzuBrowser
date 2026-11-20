@@ -6,13 +6,12 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   build:
     name: Build Debug APK
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     steps:
       - name: Checkout source
@@ -33,25 +32,210 @@ jobs:
           test -n "$ANDROID_HOME"
           test -d "$ANDROID_HOME"
 
-      - name: Download KVS Schema artifacts
-        uses: actions/download-artifact@v4
+      - name: Set up Java 17 for Android SDK
+        uses: actions/setup-java@v4
         with:
-          name: kvs-schema-build-results
-          run-id: 44117506520
-          repository: Sergio-Mentos-Geyser/YuzuBrowser
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: kvs-schema-artifacts
+          distribution: temurin
+          java-version: '17'
 
-      - name: Inspect downloaded artifacts
+      - name: Clone KVS Schema at fixed commit
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Downloaded files:"
-          find kvs-schema-artifacts \
-            -type f -print
+          git clone \
+            https://github.com/rejasupotaro/kvs-schema.git \
+            kvs-schema-source
 
-          test -d kvs-schema-artifacts
+          cd kvs-schema-source
+
+          EXPECTED="da82f8d6c94c41057101921d222050378ad7190e"
+
+          git checkout "$EXPECTED"
+
+          ACTUAL="$(git rev-parse HEAD)"
+
+          echo "Expected commit: $EXPECTED"
+          echo "Actual commit:   $ACTUAL"
+
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Unexpected source revision."
+            exit 1
+          fi
+
+          echo "Version information:"
+          cat gradle/version/version.properties
+
+          echo "Gradle Wrapper:"
+          cat gradle/wrapper/gradle-wrapper.properties
+
+      - name: Install Android SDK 28
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+          test -x "$SDKMANAGER"
+
+          "$SDKMANAGER" \
+            "platforms;android-28" \
+            "build-tools;28.0.3"
+
+      - name: Switch to Java 8
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          JAVA8="$JAVA_HOME_8_X64"
+
+          test -d "$JAVA8"
+
+          echo "JAVA_HOME=$JAVA8" >> "$GITHUB_ENV"
+          echo "$JAVA8/bin" >> "$GITHUB_PATH"
+
+          "$JAVA8/bin/java" -version
+
+      - name: Disable obsolete Bintray publishing plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path("kvs-schema-source")
+
+          root_file = root / "build.gradle"
+          library_file = root / "library/build.gradle"
+          compiler_file = root / "compiler/build.gradle"
+
+          def remove_exact_line(path, target):
+              source = path.read_text(encoding="utf-8")
+              lines = source.splitlines(keepends=True)
+
+              matches = [
+                  line for line in lines
+                  if line.strip() == target
+              ]
+
+              if len(matches) != 1:
+                  raise RuntimeError(
+                      f"Expected one occurrence of {target} "
+                      f"in {path}, found {len(matches)}"
+                  )
+
+              result = "".join(
+                  line for line in lines
+                  if line.strip() != target
+              )
+
+              path.write_text(result, encoding="utf-8")
+
+          def remove_publish_block(path):
+              source = path.read_text(encoding="utf-8")
+
+              pattern = (
+                  r"(?m)^publish\s*\{"
+                  r"[^{}]*"
+                  r"^\}\s*\n?"
+              )
+
+              result, count = re.subn(
+                  pattern,
+                  "",
+                  source
+              )
+
+              if count != 1:
+                  raise RuntimeError(
+                      f"Expected one publish block in "
+                      f"{path}, found {count}"
+                  )
+
+              path.write_text(result, encoding="utf-8")
+
+          remove_exact_line(
+              root_file,
+              "classpath 'com.novoda:bintray-release:0.9'"
+          )
+
+          for path in [library_file, compiler_file]:
+              remove_exact_line(
+                  path,
+                  "apply plugin: 'com.novoda.bintray-release'"
+              )
+              remove_publish_block(path)
+
+          print("Obsolete Bintray plugin disabled.")
+          print("Original GitHub repositories unchanged.")
+          PY
+
+      - name: Add Maven Central to KVS Schema
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("kvs-schema-source/build.gradle")
+          source = path.read_text(encoding="utf-8")
+
+          old = (
+              "repositories {\n"
+              "        google()\n"
+              "        jcenter()\n"
+              "    }"
+          )
+
+          new = (
+              "repositories {\n"
+              "        google()\n"
+              "        mavenCentral()\n"
+              "        jcenter()\n"
+              "    }"
+          )
+
+          count = source.count(old)
+
+          if count != 2:
+              raise RuntimeError(
+                  f"Expected 2 repository blocks, found {count}"
+              )
+
+          source = source.replace(old, new)
+
+          path.write_text(source, encoding="utf-8")
+
+          print("Maven Central added.")
+          PY
+
+      - name: Check Gradle environment
+        shell: bash
+        working-directory: kvs-schema-source
+        run: |
+          set -euo pipefail
+
+          chmod +x ./gradlew
+
+          java -version
+
+          ./gradlew --version
+
+      - name: Build KVS Schema libraries
+        shell: bash
+        working-directory: kvs-schema-source
+        run: |
+          set -euo pipefail
+
+          ./gradlew \
+            :library:assembleRelease \
+            :compiler:jar \
+            --no-daemon \
+            --stacktrace \
+            --console=plain
 
       - name: Create local Maven repository
         shell: bash
@@ -63,7 +247,7 @@ jobs:
           import shutil
           import xml.etree.ElementTree as ET
 
-          artifact_root = Path("kvs-schema-artifacts")
+          artifact_root = Path("kvs-schema-source")
           maven_root = Path("local-maven")
           group_path = Path("com/rejasupotaro")
           version = "5.1.0"
