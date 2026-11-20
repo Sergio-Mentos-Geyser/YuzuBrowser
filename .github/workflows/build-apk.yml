@@ -555,8 +555,81 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --version
 
+      - name: Restore fixed debug signing key
+        shell: bash
+        env:
+          YUZU_DEBUG_KEYSTORE_BASE64: ${{ secrets.YUZU_DEBUG_KEYSTORE_BASE64 }}
+          YUZU_DEBUG_STORE_PASSWORD: ${{ secrets.YUZU_DEBUG_STORE_PASSWORD }}
+          YUZU_DEBUG_KEY_ALIAS: ${{ secrets.YUZU_DEBUG_KEY_ALIAS }}
+          YUZU_DEBUG_KEY_PASSWORD: ${{ secrets.YUZU_DEBUG_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          for name in YUZU_DEBUG_KEYSTORE_BASE64 YUZU_DEBUG_STORE_PASSWORD YUZU_DEBUG_KEY_ALIAS YUZU_DEBUG_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+
+          KEYSTORE_PATH="$RUNNER_TEMP/yuzubrowser-fixed-debug.jks"
+          printf '%s' "$YUZU_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+
+          echo "YUZU_DEBUG_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/build.gradle")
+          source = path.read_text(encoding="utf-8")
+
+          build_types = "    buildTypes {\n"
+          debug = "        debug {\n"
+
+          if source.count(build_types) != 1 or source.count(debug) != 1:
+              raise RuntimeError("Unexpected Gradle signing configuration layout")
+
+          signing = (
+              "    signingConfigs {\n"
+              "        fixedDebug {\n"
+              "            storeFile file(System.getenv('YUZU_DEBUG_KEYSTORE_PATH'))\n"
+              "            storePassword System.getenv('YUZU_DEBUG_STORE_PASSWORD')\n"
+              "            keyAlias System.getenv('YUZU_DEBUG_KEY_ALIAS')\n"
+              "            keyPassword System.getenv('YUZU_DEBUG_KEY_PASSWORD')\n"
+              "        }\n"
+              "    }\n"
+          )
+
+          source = source.replace(build_types, signing + build_types, 1)
+          source = source.replace(
+              debug,
+              debug + "            signingConfig signingConfigs.fixedDebug\n",
+              1
+          )
+          path.write_text(source, encoding="utf-8")
+          print("Fixed debug signing configuration added temporarily.")
+          PY
+
+      - name: Verify fixed debug signing key
+        shell: bash
+        env:
+          YUZU_DEBUG_STORE_PASSWORD: ${{ secrets.YUZU_DEBUG_STORE_PASSWORD }}
+          YUZU_DEBUG_KEY_ALIAS: ${{ secrets.YUZU_DEBUG_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          keytool -list -keystore "$YUZU_DEBUG_KEYSTORE_PATH" \
+            -storepass "$YUZU_DEBUG_STORE_PASSWORD" \
+            -alias "$YUZU_DEBUG_KEY_ALIAS" > /dev/null
+          echo "Fixed debug keystore and alias verified."
+
       - name: Build Debug APK
         shell: bash
+        env:
+          YUZU_DEBUG_STORE_PASSWORD: ${{ secrets.YUZU_DEBUG_STORE_PASSWORD }}
+          YUZU_DEBUG_KEY_ALIAS: ${{ secrets.YUZU_DEBUG_KEY_ALIAS }}
+          YUZU_DEBUG_KEY_PASSWORD: ${{ secrets.YUZU_DEBUG_KEY_PASSWORD }}
         run: |
           set -euo pipefail
 
