@@ -156,6 +156,7 @@ class AbpUpdateService : JobIntentService() {
                 .url(entity.url)
                 .get()
         } catch (e: IllegalArgumentException) {
+            if (BuildConfig.DEBUG) Log.w(TAG_SCHEDULE, "HTTP_INVALID_URL id=${entity.entityId} reason=${e.javaClass.simpleName}")
             return false
         }
 
@@ -170,14 +171,23 @@ class AbpUpdateService : JobIntentService() {
             }
         }
 
+        if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE,
+            "HTTP_REQUEST id=${entity.entityId} conditional=${request.build().header("If-Modified-Since") != null} url=${entity.url.substringBefore('?').substringBefore('#')}")
         val call = okHttpClient.newCall(request.build())
         try {
             val response = call.execute()
             if (BuildConfig.DEBUG) Log.d("YuzuAbpDecode", "HTTP_RESPONSE status=" + response.code + " url=" + entity.url.substringBefore('?').substringBefore('#'))
 
+            if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE,
+                "HTTP_STATUS id=${entity.entityId} code=${response.code} success=${response.isSuccessful}")
             if (response.code == 304) {
                 entity.lastLocalUpdate = System.currentTimeMillis()
                 abpDatabase.abpDao().update(entity)
+                return false
+            }
+            if (!response.isSuccessful) {
+                if (BuildConfig.DEBUG) Log.w(TAG_SCHEDULE, "HTTP_REJECTED id=${entity.entityId} status=${response.code}")
+                response.close()
                 return false
             }
             response.body?.run {
@@ -192,8 +202,10 @@ class AbpUpdateService : JobIntentService() {
                 }
             }
         } catch (e: IOException) {
+            if (BuildConfig.DEBUG) Log.w(TAG_SCHEDULE, "HTTP_IO_ERROR id=${entity.entityId}", e)
             e.printStackTrace()
         }
+        if (BuildConfig.DEBUG) Log.w(TAG_SCHEDULE, "HTTP_NOT_UPDATED id=${entity.entityId}")
         return false
     }
 
