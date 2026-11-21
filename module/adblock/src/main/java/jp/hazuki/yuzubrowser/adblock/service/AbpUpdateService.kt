@@ -76,25 +76,27 @@ class AbpUpdateService : JobIntentService() {
     }
 
     private fun updateAll(forceUpdate: Boolean, resultReceiver: ResultReceiver?) = runBlocking {
+        val start = System.currentTimeMillis()
         var result = false
-        var nextUpdateTime = Long.MAX_VALUE
-        val now = System.currentTimeMillis()
-        abpDatabase.abpDao().getAll().forEach {
-            if (forceUpdate || it.isNeedUpdate()) {
-                val localResult = updateInternal(it, forceUpdate)
-                if (localResult && it.expires > 0) {
-                    val nextTime = it.expires * AN_HOUR + now
-                    if (nextTime < nextUpdateTime) nextUpdateTime = nextTime
-                }
+        val entities = abpDatabase.abpDao().getAll()
+        if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE, "BATCH_START force=$forceUpdate count=${entities.size} at=$start")
+        val failedIds = mutableSetOf<Int>()
+        entities.forEach { entity ->
+            val due = entity.isNeedUpdate()
+            val shouldUpdate = forceUpdate || (entity.enabled && due)
+            if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE,
+                "BATCH_ITEM id=${entity.entityId} enabled=${entity.enabled} due=$due selected=$shouldUpdate last=${entity.lastLocalUpdate} expires=${entity.expires}")
+            if (shouldUpdate) {
+                val localResult = updateInternal(entity, forceUpdate)
+                if (!localResult && entity.isNeedUpdate()) failedIds.add(entity.entityId)
+                if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE,
+                    "BATCH_RESULT id=${entity.entityId} success=$localResult last=${entity.lastLocalUpdate}")
                 result = result or localResult
             }
         }
-
-        AdBlockPref.get(applicationContext).abpNextUpdateTime = if (nextUpdateTime != Long.MAX_VALUE) {
-            nextUpdateTime
-        } else {
-            System.currentTimeMillis() + A_DAY
-        }
+        refreshNextUpdateTime(failedIds)
+        if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE,
+            "BATCH_END elapsedMs=${System.currentTimeMillis() - start} anyUpdated=$result")
         if (result) {
             LocalEventBus.getDefault().notify(BROADCAST_ACTION_UPDATE_AD_BLOCK_DATA)
         }
@@ -102,12 +104,39 @@ class AbpUpdateService : JobIntentService() {
     }
 
     private fun updateAbpEntity(entity: AbpEntity, result: ResultReceiver?) = runBlocking {
-        if (updateInternal(entity)) {
+        if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE, "SINGLE_START id=${entity.entityId} enabled=${entity.enabled}")
+        val updated = updateInternal(entity)
+        refreshNextUpdateTime(if (!updated && entity.isNeedUpdate()) setOf(entity.entityId) else emptySet())
+        if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE,
+            "SINGLE_END id=${entity.entityId} updated=$updated last=${entity.lastLocalUpdate}")
+        if (updated) {
             result?.send(RESULT_CODE_UPDATED, Bundle().apply { putParcelable(EXTRA_ABP_ENTRY, entity) })
             LocalEventBus.getDefault().notify(BROADCAST_ACTION_UPDATE_AD_BLOCK_DATA)
         } else {
             result?.send(RESULT_CODE_FAILED, Bundle().apply { putParcelable(EXTRA_ABP_ENTRY, entity) })
         }
+    }
+
+    // Recalculate from persisted entities, not only successfully updated entries.
+    // Failed due entries are retried after one hour to avoid a tight retry loop.
+    private suspend fun refreshNextUpdateTime(failedIds: Set<Int> = emptySet()) {
+        val now = System.currentTimeMillis()
+        var next = Long.MAX_VALUE
+        val entities = abpDatabase.abpDao().getAll()
+        entities.forEach { entity ->
+            if (!entity.enabled) return@forEach
+            val interval = if (entity.expires > 0) entity.expires.toLong() * AN_HOUR else A_DAY
+            val dueAt = if (entity.lastLocalUpdate <= 0L) now else
+                (entity.lastLocalUpdate + interval).coerceAtLeast(entity.lastLocalUpdate)
+            val candidate = if (entity.entityId in failedIds || dueAt <= now) now + RETRY_DELAY else dueAt
+            if (candidate < next) next = candidate
+            if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE,
+                "NEXT_ITEM id=${entity.entityId} last=${entity.lastLocalUpdate} intervalMs=$interval failed=${entity.entityId in failedIds} candidate=$candidate")
+        }
+        if (next == Long.MAX_VALUE) next = now + A_DAY
+        AdBlockPref.get(applicationContext).abpNextUpdateTime = next
+        if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE,
+            "NEXT_SAVED at=$now next=$next delayMs=${next - now} enabledCount=${entities.count { it.enabled }}")
     }
 
     private suspend fun updateInternal(entity: AbpEntity, forceUpdate: Boolean = false): Boolean {
@@ -270,19 +299,31 @@ class AbpUpdateService : JobIntentService() {
         private const val RESULT_CODE_FAILED = 2
         private const val RESULT_CODE_UPDATE_ALL = 3
 
-        private const val AN_HOUR = 60 * 60 * 1000
-        private const val A_DAY = 24 * AN_HOUR
+        private const val AN_HOUR = 60L * 60 * 1000
+        private const val A_DAY = 24L * AN_HOUR
+        private const val RETRY_DELAY = AN_HOUR
+        private const val TAG_SCHEDULE = "YuzuAbpSchedule"
 
         private const val JOB_ID = 10
 
         fun updateAll(context: Context, forceUpdate: Boolean = false, result: UpdateResult? = null) {
             if (!forceUpdate) {
                 val prefs = AdBlockPref.get(context.applicationContext)
-                if (prefs.abpNextUpdateTime < System.currentTimeMillis()) return
+                val now = System.currentTimeMillis()
+                val next = prefs.abpNextUpdateTime
+                if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE,
+                    "AUTO_CHECK now=$now next=$next due=${next <= now}")
+                if (next > now) {
+                    if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE, "AUTO_SKIP reason=not_due")
+                    return
+                }
 
                 if (AppPrefs.abpUpdateWifiOnly.get()) {
                     val cm = context.getSystemService<ConnectivityManager>()!!
-                    if (!cm.isConnectedWifi()) return
+                    if (!cm.isConnectedWifi()) {
+                        if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE, "AUTO_SKIP reason=wifi_required")
+                        return
+                    }
                 }
             }
 
@@ -292,6 +333,7 @@ class AbpUpdateService : JobIntentService() {
                 putExtra(EXTRA_RESULT, result)
             }
 
+            if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE, "ENQUEUE_ALL force=$forceUpdate")
             enqueueWork(context, AbpUpdateService::class.java, JOB_ID, intent)
         }
 
@@ -302,6 +344,7 @@ class AbpUpdateService : JobIntentService() {
                 putExtra(EXTRA_RESULT, result)
             }
 
+            if (BuildConfig.DEBUG) Log.d(TAG_SCHEDULE, "ENQUEUE_SINGLE id=${abpEntity.entityId}")
             enqueueWork(context, AbpUpdateService::class.java, JOB_ID, intent)
         }
     }
