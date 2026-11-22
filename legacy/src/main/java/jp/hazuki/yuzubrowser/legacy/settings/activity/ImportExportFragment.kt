@@ -25,6 +25,7 @@ import android.widget.Toast
 import androidx.documentfile.provider.DocumentFile
 import androidx.preference.Preference
 import dagger.hilt.android.AndroidEntryPoint
+import jp.hazuki.yuzubrowser.adblock.repository.abp.AbpDatabase
 import jp.hazuki.yuzubrowser.bookmark.item.BookmarkFolder
 import jp.hazuki.yuzubrowser.bookmark.netscape.exportHtmlBookmark
 import jp.hazuki.yuzubrowser.bookmark.netscape.importHtmlBookmark
@@ -50,6 +51,9 @@ import javax.inject.Inject
 class ImportExportFragment : YuzuPreferenceFragment() {
     @Inject
     internal lateinit var faviconManager: FaviconManager
+
+    @Inject
+    internal lateinit var abpDatabase: AbpDatabase
 
     override fun onCreateYuzuPreferences(savedInstanceState: Bundle?, rootKey: String?) {
         addPreferencesFromResource(R.xml.pref_import_export)
@@ -230,7 +234,7 @@ class ImportExportFragment : YuzuPreferenceFragment() {
         GlobalScope.launch(Dispatchers.Main) {
             val context = requireContext()
             val manager = BackupManager(context)
-            val result = withContext(Dispatchers.IO) { manager.backup(context, uri) }
+            val result = withContext(Dispatchers.IO) { manager.backup(context, uri, abpDatabase) }
             context.actionMessage(result)
         }
     }
@@ -248,7 +252,7 @@ class ImportExportFragment : YuzuPreferenceFragment() {
         GlobalScope.launch(Dispatchers.Main) {
             val context = requireContext()
             val manager = BackupManager(context)
-            val result = withContext(Dispatchers.IO) { manager.restore(context, uri) }
+            val result = withContext(Dispatchers.IO) { manager.restore(context, uri, abpDatabase) }
             context.actionMessage(result)
             if (result) {
                 startActivity(RestartActivity.createIntent(context))

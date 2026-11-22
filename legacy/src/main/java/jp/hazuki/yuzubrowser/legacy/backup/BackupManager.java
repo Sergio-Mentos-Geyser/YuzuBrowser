@@ -41,22 +41,30 @@ public class BackupManager {
     }
 
     public void cleanFiles() {
-        clean(root);
+        cleanFiles(false);
     }
 
-    private void clean(File file) {
+    public void cleanFiles(boolean preserveAbpDatabase) {
+        clean(root, preserveAbpDatabase);
+    }
+
+    private void clean(File file, boolean preserveAbpDatabase) {
         if (!file.exists()) return;
         if (file.isDirectory()) {
             for (File child : file.listFiles()) {
                 if (isBackUpFolder(child)) {
-                    clean(child);
+                    clean(child, preserveAbpDatabase);
                 }
             }
         } else {
-            if (isBackupFile(file)) {
+            if (isBackupFile(file) && !(preserveAbpDatabase && isAbpDatabase(file))) {
                 file.delete();
             }
         }
+    }
+
+    private boolean isAbpDatabase(File file) {
+        return file.equals(new File(root, "databases/abp.db"));
     }
 
     private boolean isBackUpFolder(File folder) {
