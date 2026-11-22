@@ -495,47 +495,6 @@ jobs:
           )
           PY
 
-      - name: Disable obsolete Fabric Gradle plugin
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("app/build.gradle")
-          source = path.read_text(encoding="utf-8")
-
-          target = (
-              "classpath "
-              "'io.fabric.tools:gradle:1.31.2'"
-          )
-
-          if source.count(target) != 1:
-              raise RuntimeError(
-                  "Unexpected Fabric dependency"
-              )
-
-          lines = source.splitlines(
-              keepends=True
-          )
-
-          lines = [
-              line for line in lines
-              if target not in line
-          ]
-
-          path.write_text(
-              "".join(lines),
-              encoding="utf-8"
-          )
-
-          print(
-              "Obsolete Fabric Gradle "
-              "dependency removed."
-          )
-          PY
-
       - name: Show temporary changes
         shell: bash
         run: |
