@@ -3,6 +3,9 @@ name: Build YuzuBrowser APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - dev
 
 permissions:
   contents: read
