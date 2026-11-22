@@ -29,6 +29,8 @@
         <item>@string/action_page_down</item>
         <item>@string/action_page_top</item>
         <item>@string/action_page_bottom</item>
+        <item>@string/action_page_top_jump</item>
+        <item>@string/action_page_bottom_jump</item>
         <item>@string/action_custom_page_scroll</item>
         <item>@string/action_seekbar_page_scroll</item>
         <item>@string/action_auto_page_scroll</item>

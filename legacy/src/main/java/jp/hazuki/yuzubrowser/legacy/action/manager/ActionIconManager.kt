@@ -69,6 +69,8 @@ class ActionIconManager(val info: BrowserInfo) {
             SingleAction.PAGE_DOWN -> return info.resourcesByInfo.getDrawable(R.drawable.ic_arrow_downward_white_24dp, info.themeByInfo)
             SingleAction.PAGE_TOP -> return info.resourcesByInfo.getDrawable(R.drawable.ic_keyboard_arrow_up_black_24dp, info.themeByInfo)
             SingleAction.PAGE_BOTTOM -> return info.resourcesByInfo.getDrawable(R.drawable.ic_keyboard_arrow_down_black_24dp, info.themeByInfo)
+            SingleAction.PAGE_TOP_JUMP -> return info.resourcesByInfo.getDrawable(R.drawable.ic_vertical_align_top_white_24dp, info.themeByInfo)
+            SingleAction.PAGE_BOTTOM_JUMP -> return info.resourcesByInfo.getDrawable(R.drawable.ic_vertical_align_bottom_white_24dp, info.themeByInfo)
             SingleAction.PAGE_SCROLL -> {
                 val id = (action as WebScrollSingleAction).iconResourceId
                 return if (id > 0)

@@ -30,6 +30,8 @@
         <item>@drawable/ic_arrow_downward_white_24dp</item>
         <item>@drawable/ic_keyboard_arrow_up_black_24dp</item>
         <item>@drawable/ic_keyboard_arrow_down_black_24dp</item>
+        <item>@drawable/ic_vertical_align_top_white_24dp</item>
+        <item>@drawable/ic_vertical_align_bottom_white_24dp</item>
         <item>@drawable/ic_arrow_down_right_white_24dp</item>
         <item>@drawable/ic_scroll_white_24dp</item>
         <item>@drawable/ic_play_arrow_white_24dp</item>

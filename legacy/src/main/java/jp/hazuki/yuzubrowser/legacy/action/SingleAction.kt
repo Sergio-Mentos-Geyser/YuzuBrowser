@@ -89,6 +89,8 @@ open class SingleAction : Parcelable {
         const val PAGE_DOWN = 1208
         const val PAGE_TOP = 1209
         const val PAGE_BOTTOM = 1210
+        const val PAGE_TOP_JUMP = 1211
+        const val PAGE_BOTTOM_JUMP = 1212
         const val PAGE_SCROLL = 1215
         const val PAGE_FAST_SCROLL = 1216
         const val PAGE_AUTO_SCROLL = 1217

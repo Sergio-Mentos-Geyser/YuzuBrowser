@@ -28,6 +28,8 @@
     <string name="action_page_down">ページダウン</string>
     <string name="action_page_top">先頭へ移動</string>
     <string name="action_page_bottom">末尾へ移動</string>
+    <string name="action_page_top_jump">先頭へ移動(ジャンプする)</string>
+    <string name="action_page_bottom_jump">末尾へ移動(ジャンプする)</string>
     <string name="action_custom_page_scroll">カスタムページスクロール</string>
     <string name="action_seekbar_page_scroll">シークバーページスクロール</string>
     <string name="action_auto_page_scroll">オートページスクロール</string>

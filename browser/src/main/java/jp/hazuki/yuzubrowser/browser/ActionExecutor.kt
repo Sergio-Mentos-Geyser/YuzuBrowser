@@ -485,6 +485,17 @@ class ActionExecutor(
             SingleAction.PAGE_DOWN -> controller.getTab(actionTarget).mWebView.pageDown(false)
             SingleAction.PAGE_TOP -> controller.getTab(actionTarget).mWebView.pageUp(true)
             SingleAction.PAGE_BOTTOM -> controller.getTab(actionTarget).mWebView.pageDown(true)
+            SingleAction.PAGE_TOP_JUMP -> {
+                val webView = controller.getTab(actionTarget).mWebView
+                webView.scrollTo(webView.webScrollX, 0)
+            }
+            SingleAction.PAGE_BOTTOM_JUMP -> {
+                val webView = controller.getTab(actionTarget).mWebView
+                val scrollRange = webView.computeVerticalScrollRangeMethod()
+                val scrollExtent = webView.computeVerticalScrollExtentMethod()
+                val bottom = (scrollRange - scrollExtent).coerceAtLeast(0)
+                webView.scrollTo(webView.webScrollX, bottom)
+            }
             SingleAction.PAGE_SCROLL -> (action as WebScrollSingleAction).scrollWebView(controller.applicationContextInfo, controller.getTab(actionTarget).mWebView)
             SingleAction.PAGE_FAST_SCROLL -> {
                 if (controller.isEnableFastPageScroller) {

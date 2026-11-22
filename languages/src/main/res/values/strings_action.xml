@@ -28,6 +28,8 @@
     <string name="action_page_down">Page down</string>
     <string name="action_page_top">Page top</string>
     <string name="action_page_bottom">Page bottom</string>
+    <string name="action_page_top_jump">Jump to top</string>
+    <string name="action_page_bottom_jump">Jump to bottom</string>
     <string name="action_custom_page_scroll">Custom page scroll</string>
     <string name="action_seekbar_page_scroll">Seekbar page scroll</string>
     <string name="action_auto_page_scroll">Auto page scroll</string>
