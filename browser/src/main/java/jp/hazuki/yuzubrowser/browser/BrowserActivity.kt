@@ -398,10 +398,11 @@ class BrowserActivity : BrowserBaseActivity(), BrowserController, FinishAlertDia
         try {
             val session = TabSessionBackup.takePending(this) ?: return
             val selectedTab = tabManagerIn.currentTabNo
+            val usedTabIds = tabManagerIn.indexDataList.map { it.id }.toMutableSet()
             var count = 0
             try {
                 session.tabs.forEach { entry ->
-                    val tab = addNewTab(TabType.DEFAULT)
+                    val tab = addNewTab(TabType.DEFAULT, usedTabIds)
                     tab.setUpBgTab()
                     val url = entry.url
                     if (!url.isNullOrEmpty()) {
@@ -1291,12 +1292,28 @@ class BrowserActivity : BrowserBaseActivity(), BrowserController, FinishAlertDia
         finish()
     }
 
-    private fun addNewTab(@TabType type: Int): MainTabData {
-        return addNewTab(webViewFactory.mode, type)
+    private fun addNewTab(@TabType type: Int, usedIds: MutableSet<Long>? = null): MainTabData {
+        return addNewTab(webViewFactory.mode, type, usedIds)
     }
 
-    private fun addNewTab(@WebViewType cacheType: Int, @TabType type: Int): MainTabData {
+    private fun addNewTab(
+        @WebViewType cacheType: Int,
+        @TabType type: Int,
+        usedIds: MutableSet<Long>? = null
+    ): MainTabData {
         val web = makeWebView(cacheType)
+        if (usedIds != null) {
+            var identityId = web.identityId
+            while (identityId > 0L && usedIds.contains(identityId)) {
+                identityId--
+            }
+            if (identityId <= 0L) {
+                web.destroy()
+                throw IllegalStateException("Cannot allocate unique tab ID")
+            }
+            web.identityId = identityId
+            usedIds.add(identityId)
+        }
         // TODO: Restore this when Google fixes the bug where the WebView is blank after calling onPause followed by onResume.
         //        if (AppPrefs.pause_web_tab_change.get())
         //            web.onPause();
