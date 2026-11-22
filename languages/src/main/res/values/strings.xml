@@ -343,4 +343,15 @@
     <string name="site">Site</string>
     <string name="updating_ad_filters">Updating Ad block filters</string>
     <string name="do_nothing">Do nothing</string>
+    <string name="tab_session_category">Tabs</string>
+    <string name="tab_session_backup">Back up tabs</string>
+    <string name="tab_session_restore">Restore tabs</string>
+    <string name="tab_session_proceed">Continue</string>
+    <string name="tab_session_backup_warning">All open tab URLs and titles will be saved in an unencrypted JSON file. Anyone with the file can read them. Continue?</string>
+    <string name="tab_session_backup_private_warning">Private mode is enabled. All tab URLs and titles, including sensitive pages, will be saved in an unencrypted JSON file. Private mode will not change. Continue?</string>
+    <string name="tab_session_restore_warning">Saved tabs will be appended to the right of existing tabs. Existing tabs and the private mode setting will not change. Continue?</string>
+    <string name="tab_session_restore_private_warning">This backup was made in private mode, but your browser is currently in normal mode. Restored pages may be saved in browsing history. The private mode setting will not change. Append the tabs?</string>
+    <string name="tab_session_restore_staged">Tab import prepared. Return to the browser to add tabs.</string>
+    <string name="tab_session_imported">Added %1$d tabs.</string>
+    <string name="tab_session_import_failed">Could not import all tabs. Please check the tab list.</string>
 </resources>
