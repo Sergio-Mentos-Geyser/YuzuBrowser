@@ -3,6 +3,9 @@ name: Build Yuzu Browser Derivative Release APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/tab-session-json-backup
 
 permissions:
   contents: read
