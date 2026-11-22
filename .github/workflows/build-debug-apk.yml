@@ -1,5 +1,5 @@
 
-name: Build YuzuBrowser APK
+name: Build Yuzu Browser Derivative Debug APK
 
 on:
   workflow_dispatch:

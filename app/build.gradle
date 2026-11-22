@@ -76,15 +76,12 @@ android {
     }
 
     applicationVariants.all { variant ->
-        if (variant.buildType.name == "release") {
-            variant.outputs.each { output ->
-                if (output.outputFileName.endsWith('.apk')) {
-                    // Rename APK
-                    def applicationId = defaultConfig.applicationId
-                    def versionCode = defaultConfig.versionCode
-                    def versionName = defaultConfig.versionName
-                    output.outputFileName = "${applicationId}_v${versionName}_${versionCode}.apk"
-                }
+        variant.outputs.each { output ->
+            if (output.outputFileName.endsWith('.apk')) {
+                def versionCode = defaultConfig.versionCode
+                def versionName = defaultConfig.versionName
+                def buildType = variant.buildType.name
+                output.outputFileName = "Yuzu Browser Derivative_v${versionName}_${versionCode}_${buildType}.apk"
             }
         }
     }
