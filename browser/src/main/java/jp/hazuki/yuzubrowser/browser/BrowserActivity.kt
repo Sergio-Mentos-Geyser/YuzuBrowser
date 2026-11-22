@@ -403,8 +403,9 @@ class BrowserActivity : BrowserBaseActivity(), BrowserController, FinishAlertDia
                 session.tabs.forEach { entry ->
                     val tab = addNewTab(TabType.DEFAULT)
                     tab.setUpBgTab()
-                    if (!entry.url.isNullOrEmpty()) {
-                        loadUrl(tab, entry.url)
+                    val url = entry.url
+                    if (!url.isNullOrEmpty()) {
+                        loadUrl(tab, url)
                     } else if (entry.title != null) {
                         tab.title = entry.title
                     }
