@@ -180,8 +180,8 @@
             android:authorities="${applicationId}.search.SuggestProvider"
             android:exported="false"
             android:permission="${applicationId}.permission.myapp.signature"
-            android:readPermission="jp.hazuki.yuzubrowser.permission.myapp.signature"
-            android:writePermission="jp.hazuki.yuzubrowser.permission.myapp.signature" />
+            android:readPermission="${applicationId}.permission.myapp.signature"
+            android:writePermission="${applicationId}.permission.myapp.signature" />
 
         <service
             android:name="jp.hazuki.yuzubrowser.download.service.DownloadService"
