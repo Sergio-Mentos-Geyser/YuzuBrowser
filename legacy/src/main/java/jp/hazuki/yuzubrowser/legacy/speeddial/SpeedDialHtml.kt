@@ -97,7 +97,8 @@ class SpeedDialHtml(context: Context) {
         val index = manager.indexData
         val builder = StringBuilder(8000)
         val start = getResourceString(context, R.raw.speeddial_start)
-        builder.append(start)
+        val appName = HtmlUtils.sanitize(context.applicationInfo.loadLabel(context.packageManager).toString())
+        builder.append(start.replace("Yuzu Browser", appName))
 
         for ((id, url, title, updateTime) in index) {
             builder.append("<div class=\"box\"><a href=\"")
