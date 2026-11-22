@@ -71,6 +71,7 @@ import jp.hazuki.yuzubrowser.download.ui.FastDownloadActivity
 import jp.hazuki.yuzubrowser.download.ui.fragment.SaveWebArchiveDialog
 import jp.hazuki.yuzubrowser.favicon.FaviconManager
 import jp.hazuki.yuzubrowser.history.repository.BrowserHistoryManager
+import jp.hazuki.yuzubrowser.legacy.backup.TabSessionBackup
 import jp.hazuki.yuzubrowser.legacy.Constants
 import jp.hazuki.yuzubrowser.legacy.action.Action
 import jp.hazuki.yuzubrowser.legacy.action.ActionNameMap
@@ -389,6 +390,41 @@ class BrowserActivity : BrowserBaseActivity(), BrowserController, FinishAlertDia
         delayAction?.let {
             actionController.run(it)
             delayAction = null
+        }
+        applyPendingTabImport()
+    }
+
+    private fun applyPendingTabImport() {
+        try {
+            val session = TabSessionBackup.takePending(this) ?: return
+            val selectedTab = tabManagerIn.currentTabNo
+            var count = 0
+            try {
+                session.tabs.forEach { entry ->
+                    val tab = addNewTab(TabType.DEFAULT)
+                    tab.setUpBgTab()
+                    if (!entry.url.isNullOrEmpty()) {
+                        loadUrl(tab, entry.url)
+                    } else if (entry.title != null) {
+                        tab.title = entry.title
+                    }
+                    tab.isPinning = entry.pinned
+                    tab.isNavLock = entry.navigationLocked
+                    tab.invalidateView(false, resources, theme)
+                    count++
+                }
+            } finally {
+                if (selectedTab >= 0 && selectedTab < tabManagerIn.size() &&
+                    selectedTab != tabManagerIn.currentTabNo) {
+                    setCurrentTab(selectedTab)
+                }
+                tabManagerIn.saveData()
+            }
+            Toast.makeText(this, getString(R.string.tab_session_imported, count),
+                Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Tab import failed", e)
+            Toast.makeText(this, R.string.tab_session_import_failed, Toast.LENGTH_LONG).show()
         }
     }
 

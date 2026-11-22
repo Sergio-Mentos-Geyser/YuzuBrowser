@@ -22,6 +22,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.*
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.documentfile.provider.DocumentFile
 import androidx.preference.Preference
 import dagger.hilt.android.AndroidEntryPoint
@@ -107,6 +108,35 @@ class ImportExportFragment : YuzuPreferenceFragment() {
             }
             backupSpeeddialLauncher.launch(intent)
             false
+        }
+
+        findPreference<Preference>("backup_tabs")!!.setOnPreferenceClickListener {
+            val privateMode = jp.hazuki.yuzubrowser.ui.settings.AppPrefs.private_mode.get()
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.tab_session_backup)
+                .setMessage(if (privateMode) R.string.tab_session_backup_private_warning
+                    else R.string.tab_session_backup_warning)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.tab_session_proceed) { _, _ ->
+                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        type = "application/json"
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        putExtra(Intent.EXTRA_TITLE,
+                            "yuzu_tabs_" + FileUtils.getTimeFileName() + ".json")
+                    }
+                    backupTabsLauncher.launch(intent)
+                }
+                .show()
+            true
+        }
+
+        findPreference<Preference>("restore_tabs")!!.setOnPreferenceClickListener {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                type = "*/*"
+                addCategory(Intent.CATEGORY_OPENABLE)
+            }
+            restoreTabsLauncher.launch(intent)
+            true
         }
 
         findPreference<Preference>("restore_settings")!!.setOnPreferenceClickListener {
@@ -224,6 +254,58 @@ class ImportExportFragment : YuzuPreferenceFragment() {
             val context = requireContext()
             val result = withContext(Dispatchers.IO) { context.restoreSpeedDial(uri) }
             context.actionMessage(result)
+        }
+    }
+
+    private val backupTabsLauncher = registerForStartActivityForResult {
+        if (it.resultCode != Activity.RESULT_OK) return@registerForStartActivityForResult
+        val uri = it.data?.data ?: return@registerForStartActivityForResult
+        GlobalScope.launch(Dispatchers.Main) {
+            val context = requireContext()
+            val privateMode = jp.hazuki.yuzubrowser.ui.settings.AppPrefs.private_mode.get()
+            val result = withContext(Dispatchers.IO) {
+                runCatching { TabSessionBackup.export(context, uri, privateMode) }.isSuccess
+            }
+            context.actionMessage(result)
+        }
+    }
+
+    private val restoreTabsLauncher = registerForStartActivityForResult {
+        if (it.resultCode != Activity.RESULT_OK) return@registerForStartActivityForResult
+        val uri = it.data?.data ?: return@registerForStartActivityForResult
+        GlobalScope.launch(Dispatchers.Main) {
+            val context = requireContext()
+            val session = withContext(Dispatchers.IO) {
+                runCatching { TabSessionBackup.read(context, uri) }.getOrNull()
+            }
+            if (session == null) {
+                context.actionMessage(false)
+                return@launch
+            }
+            val privateNow = jp.hazuki.yuzubrowser.ui.settings.AppPrefs.private_mode.get()
+            val warning = if (session.privateModeAtBackup && !privateNow) {
+                R.string.tab_session_restore_private_warning
+            } else {
+                R.string.tab_session_restore_warning
+            }
+            AlertDialog.Builder(context)
+                .setTitle(R.string.tab_session_restore)
+                .setMessage(warning)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.tab_session_proceed) { _, _ ->
+                    GlobalScope.launch(Dispatchers.Main) {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { TabSessionBackup.stage(context, session) }.isSuccess
+                        }
+                        if (result) {
+                            Toast.makeText(context, R.string.tab_session_restore_staged,
+                                Toast.LENGTH_LONG).show()
+                        } else {
+                            context.actionMessage(false)
+                        }
+                    }
+                }
+                .show()
         }
     }
 

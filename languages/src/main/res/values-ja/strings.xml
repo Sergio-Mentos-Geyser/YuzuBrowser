@@ -341,4 +341,15 @@
     <string name="site">サイト</string>
     <string name="updating_ad_filters">広告ブロックフィルタを更新中</string>
     <string name="do_nothing">なにもしない</string>
+    <string name="tab_session_category">タブ</string>
+    <string name="tab_session_backup">タブのバックアップ</string>
+    <string name="tab_session_restore">タブの復元</string>
+    <string name="tab_session_proceed">続行</string>
+    <string name="tab_session_backup_warning">開いているすべてのタブの URL とタイトルを、暗号化されていない JSON ファイルに保存します。ファイルを入手した人は内容を閲覧できます。続行しますか？</string>
+    <string name="tab_session_backup_private_warning">現在プライベートモードが有効です。機密性の高いページを含むすべてのタブの URL とタイトルが、暗号化されていない JSON ファイルに保存されます。プライベートモードは変更しません。続行しますか？</string>
+    <string name="tab_session_restore_warning">保存したタブを既存タブの一番右側に追加します。既存タブとプライベートモードの設定は変更しません。続行しますか？</string>
+    <string name="tab_session_restore_private_warning">このバックアップはプライベートモード中に作成されましたが、現在は通常モードです。復元したページが閲覧履歴に記録される可能性があります。プライベートモードは変更しません。追加しますか？</string>
+    <string name="tab_session_restore_staged">タブの復元を準備しました。ブラウザ画面に戻るとタブが追加されます。</string>
+    <string name="tab_session_imported">%1$d 件のタブを追加しました。</string>
+    <string name="tab_session_import_failed">すべてのタブを追加できませんでした。タブ一覧をご確認ください。</string>
 </resources>
