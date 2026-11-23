@@ -68,12 +68,15 @@ class BookmarkFoldersDialog(private val context: Context, private val manager: B
             .create()
 
 
-        mListView.adapter = object : ArrayAdapter<BookmarkFolder>(context.applicationContext, 0, mFolderList) {
+        mListView.adapter = object : ArrayAdapter<BookmarkFolder>(context, 0, mFolderList) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val view = convertView
-                    ?: View.inflate(context, android.R.layout.simple_list_item_1, null)
+                    ?: View.inflate(parent.context, android.R.layout.simple_list_item_1, null)
                 val item = getItem(position)
-                view.findViewById<TextView>(android.R.id.text1).text = if (item != null) item.title else ".."
+                view.findViewById<TextView>(android.R.id.text1).apply {
+                    setTextAppearance(context, R.style.TextAppearance_ListTitle)
+                    text = if (item != null) item.title else ".."
+                }
                 return view
             }
         }
