@@ -182,17 +182,14 @@ class ImportExportFragment : YuzuPreferenceFragment() {
     }
 
     private val exportBookmarkLauncher = registerForStartActivityForResult {
-        if (it.resultCode == Activity.RESULT_OK) {
-            val uri = it.data!!.data ?: return@registerForStartActivityForResult
-            val manager = BookmarkManager.getInstance(requireContext())
-            val internalFile = manager.file
+        if (it.resultCode != Activity.RESULT_OK) return@registerForStartActivityForResult
+        val uri = it.data!!.data ?: return@registerForStartActivityForResult
+        val manager = BookmarkManager.getInstance(requireContext())
+        val internalFile = manager.file
 
-            GlobalScope.launch(Dispatchers.Main) {
-                val result = withContext(Dispatchers.IO) { internalFile.copyTo(uri) }
-                requireContext().actionMessage(result)
-            }
-        } else {
-            Toast.makeText(activity, R.string.failed, Toast.LENGTH_LONG).show()
+        GlobalScope.launch(Dispatchers.Main) {
+            val result = withContext(Dispatchers.IO) { internalFile.copyTo(uri) }
+            requireContext().actionMessage(result)
         }
     }
 
