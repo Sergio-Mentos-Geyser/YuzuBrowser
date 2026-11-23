@@ -3,11 +3,6 @@ name: Build Yuzu Browser Derivative Debug APK
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - dev
-    paths:
-      - 'module/bookmark/src/main/java/jp/hazuki/yuzubrowser/bookmark/view/BookmarkFoldersDialog.kt'
 
 permissions:
   contents: read
