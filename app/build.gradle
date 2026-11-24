@@ -29,7 +29,7 @@ android {
     compileSdkVersion Build.compile_sdk_version
     buildToolsVersion Build.build_tools_version
     defaultConfig {
-        applicationId "io.github.sergiomentosgeyser.yuzubrowser.derivative"
+        applicationId "io.github.yuzubrowser.fork"
         minSdkVersion Build.min_sdk_version
         targetSdkVersion Build.target_sdk_version
         versionCode AppVersions.version_code

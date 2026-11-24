@@ -588,7 +588,7 @@ jobs:
           import json
           from pathlib import Path
           data = json.loads(Path("app/google-services.json").read_text(encoding="utf-8"))
-          expected = "io.github.sergiomentosgeyser.yuzubrowser.derivative"
+          expected = "io.github.yuzubrowser.fork"
           matches = [
               client
               for client in data.get("client", [])
@@ -670,7 +670,7 @@ jobs:
           APK="app/build/outputs/apk/release/Yuzu Browser Derivative_v6.0.2.1_410022_release.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/30.0.3/apksigner" verify --verbose "$APK"
-          "$ANDROID_HOME/build-tools/30.0.3/aapt" dump badging "$APK" | grep -F "package: name='io.github.sergiomentosgeyser.yuzubrowser.derivative'"
+          "$ANDROID_HOME/build-tools/30.0.3/aapt" dump badging "$APK" | grep -F "package: name='io.github.yuzubrowser.fork'"
           test -s app/build/outputs/mapping/release/mapping.txt
           echo "Release APK signature, package name, and mapping file verified."
 
