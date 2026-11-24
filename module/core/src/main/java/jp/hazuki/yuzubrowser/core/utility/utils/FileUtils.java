@@ -16,7 +16,6 @@
 
 package jp.hazuki.yuzubrowser.core.utility.utils;
 
-import android.annotation.SuppressLint;
 import android.util.Log;
 
 import java.io.File;
@@ -28,6 +27,7 @@ import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Comparator;
+import java.util.Locale;
 
 import jp.hazuki.yuzubrowser.core.utility.log.ErrorReport;
 import jp.hazuki.yuzubrowser.core.utility.log.Logger;
@@ -39,10 +39,9 @@ public class FileUtils {
         throw new UnsupportedOperationException();
     }
 
-    @SuppressLint("SimpleDateFormat")
     public static String getTimeFileName() {
         Calendar c = Calendar.getInstance();
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmm");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US);
         return sdf.format(c.getTime());
     }
 
